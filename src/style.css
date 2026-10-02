@@ -1,0 +1,444 @@
+<script setup>
+import {
+  ref,
+  computed
+} from 'vue'
+import { useIntersectionObserver } from 'vuetify/lib/composables/intersectionObserver.mjs'
+
+const dayWidth = 60
+
+const dialog = ref(false)
+const taskName = ref('')
+const taskStart = ref('')
+const taskEnd = ref('')
+
+const timelineStart = new Date(2026, 8, 29)
+const timelineEnd = new Date(2026, 9, 20)
+const dates = computed(() => {
+  const result = []
+  const current = new Date(timelineStart)
+  
+  while (current <= timelineEnd) {
+    result.push(new Date(current))
+    current.setDate(current.getDate() + 1)
+  }
+  return result
+})
+
+const menuItems = [
+  {
+    title: 'Dashboard',
+    icon: 'mdi-view-dashboard'
+  },
+  {
+    title: 'Tasks',
+    icon: 'mdi-format-list-bulleted'
+  }
+]
+const tasks = ref([
+  {
+    name: 'UI Design',
+    start: '2026-09-29',
+    end: '2026-10-05',
+    status: 'In Progress',
+    progress: 60
+  },
+  {
+    name: 'Backend Development',
+    start: '2026-10-01',
+    end: '2026-10-12',
+    status: 'Not Started',
+    progress: 0
+  },
+  {
+    name: 'Testing',
+    start: '2026-10-10',
+    end: '2026-10-16',
+    status: 'Not Started',
+    progress: 0
+  },
+  {
+    name: 'Deployment',
+    start: '2026-10-15',
+    end: '2026-10-20',
+    status: 'Completed',
+    progress: 100
+  }
+])
+
+function month(date) {
+  switch(date.getMonth()) {
+    case 0:
+      return 'Jan'      
+    case 1:
+      return 'Feb'      
+    case 2:
+      return 'Mar'     
+    case 3:
+      return 'Apr'     
+    case 4:
+      return 'May'     
+    case 5:
+      return 'Jun'     
+    case 6:
+      return 'Jul'    
+    case 7:
+      return 'Aug'
+    case 8:
+      return 'Sep'
+    case 9:
+      return 'Oct'
+    case 10:
+      return 'Nov'
+    case 10:
+      return 'Dec'
+  }
+}
+
+
+function addTask() {
+  tasks.value.push({
+    name: taskName.value,
+    start: taskStart.value,
+    end: taskEnd.value,
+    status: 'Not Started',
+    progress: 0
+  })
+  taskName.value = ''
+  taskStart.value = ''
+  taskEnd.value = ''
+  dialog.value = false
+}
+
+function parseDate(date) {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(year, month-1, day)
+}
+
+function getDateOffset(date) {
+  const difference = parseDate(date) - timelineStart
+  return Math.round(difference / (1000 * 60 * 60 * 24))
+}
+
+function getTaskDuration(task) {
+  const start = parseDate(task.start)
+  const end = parseDate(task.end)
+  const difference = end - start
+  return Math.round(difference / (1000 * 60 * 60 * 24)) + 1
+}
+
+function getTaskStyle(task) {
+  const offset = getDateOffset(task.start)
+  const duration = getTaskDuration(task)
+  return {
+    left: `${offset * dayWidth}px`,
+    width: `${duration * dayWidth}px`
+  }
+}
+
+function isToday(date) {
+  const today = new Date()
+  return (
+    date.getFullYear() == today.getFullYear() &&
+    date.getMonth() == today.getMonth() &&
+    date.getDate() == today.getDate()
+  )
+}
+</script>
+
+<template>
+  <v-app>
+    <v-app-bar>
+      <v-app-bar-title>
+        Project Progress
+      </v-app-bar-title>
+
+      <v-spacer>
+      </v-spacer>
+
+      <v-btn icon='mdi-magnify'>
+      </v-btn>
+    </v-app-bar>
+
+    <v-navigation-drawer>
+      <v-list>
+        <v-list-item
+          v-for="item in menuItems"
+          :key="item.title"
+          :title="item.title"
+          :prepend-icon="item.icon"
+        >
+        </v-list-item>
+      </v-list>
+    </v-navigation-drawer>
+
+    <v-dialog v-model="dialog" max-width="500">
+      <v-card>
+        <v-card-title>
+          Add Task
+        </v-card-title>
+
+        <v-card-text>
+          <v-text-field
+          v-model="taskName"
+          label="Task name"
+          placeholder="Task Name"
+          />
+
+          <v-text-field
+          v-model="taskStart"
+          label="Task start"
+          placeholder="Start Date"
+          />
+
+          <v-text-field
+          v-model="taskEnd"
+          label="Task end"
+          placeholder="End Date"
+          />
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer>
+          </v-spacer>
+
+          <v-btn @click="dialog = false">
+            Cancel
+          </v-btn>
+
+          <v-btn
+            @click="addTask"
+            color="primary"
+          >
+            Add Task
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-main>
+      <v-container fluid>
+        <div class="page-header">
+          <div>
+            <h1>
+              Gantt Chart
+            </h1>
+
+            <p>
+              Project timeline and task management
+            </p>
+          </div>
+
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-plus"
+            @click="dialog = true"
+          >
+            Add Task
+          </v-btn>
+        </div>
+        
+        <v-card>
+          <v-card-title>
+            Project Timeline
+          </v-card-title>
+
+          <v-card-text>
+            <div class="gantt">
+              <div class="gantt-header">
+                <div class="task-column">
+                  Task
+                </div>
+
+                <div
+                  class="date-header"
+                  :style="{gridTemplateColumns: `repeat(${dates.length}, ${dayWidth}px`}"
+                >
+                  <div
+                    v-for="date in dates"
+                    :key="date.toISOString()"
+                    :class="{
+                      date: true,
+                      today: isToday(date)
+                    }"
+                  >
+                    <div class="date-name">
+                      {{ month(date) }}
+                    </div>
+
+                    <div class="date-number">
+                      {{ date.getDate() }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-for="task in tasks"
+                :key="task.name"
+                class="gantt-row"
+              >
+                <div class="task-column">
+                  {{ task.name }}
+                </div>
+
+                <div
+                  class="date-column"
+                  :style="{gridTemplateColumns: `repeat(${dates.length}, ${dayWidth}px`}"
+                >
+                  <div
+                    v-for="date in dates"
+                    :key="date.toISOString()"
+                    :class="{
+                      grid_cell: true,
+                      today: isToday(date)
+                    }"
+                  >
+                  </div>
+
+                  <div
+                    class="task-bar"
+                    :class="{
+                      'in-progress': task.status === 'In Progress',
+                      'not-started': task.status === 'Not Started',
+                      'completed': task.status === 'Completed'
+                    }"
+                    :style="getTaskStyle(task)"
+                  >
+                    <div
+                      class="task-progress"
+                      :style="{ width: `${task.progress}%` }"
+                    >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-container>
+    </v-main>
+  </v-app>
+</template>
+
+<style scoped>
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.page-header p {
+  margin: 4px 0 0;
+  color: #666;
+}
+
+.gantt {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.gantt-header,
+.gantt-row {
+  display: grid;
+  grid-template-columns: 220px auto;
+}
+
+.task-column {
+  padding: 12px;
+  border-right: 1px solid #444;
+  border-bottom: 1px solid #333;
+  font-weight: 400;
+  background: #1e1e1e;
+}
+
+.today {
+  background: rgba(25, 118, 210, 0.15);
+}
+
+.today .date-number {
+  color: #42a5f5;
+}
+
+.date-header {
+  position: relative;
+  display: grid;
+}
+
+.date-column {
+  position: relative;
+  display: grid;
+}
+
+.task-bar {
+  position: absolute;
+  top: 10px;
+  height: 35px;
+  border-radius: 6px;
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  z-index: 2;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.task-bar:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+.in-progress {
+  background: #1976d2;
+}
+
+.not-started {
+  background: #757575;
+}
+
+.completed {
+  background: #388e3c;
+}
+
+.task-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.5);
+  transition: width 0.2s ease;
+}
+
+.date {
+  height: 55px;
+  text-align: center;
+  padding: 8px 5px;
+  border-right: 1px solid #444;
+  border-bottom: 1px solid #333;
+}
+
+.date-name {
+  font-size: 11px;
+  color: #777;
+}
+
+.date-number {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.grid_cell {
+  height: 55px;
+  border-right: 1px solid #444;
+  border-bottom: 1px solid #333;
+}
+</style>
