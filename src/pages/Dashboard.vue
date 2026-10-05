@@ -2,12 +2,13 @@
 import { useTaskStore } from '../stores/taskStore'
 import {
   ref,
-  computed
+  computed,
+  onMounted
 } from 'vue'
 
 const taskStore = useTaskStore()
 
-const dayWidth = 60
+const dayWidth = 40
 
 const addTDialog = ref(false)
 const taskName = ref('')
@@ -20,17 +21,65 @@ const sTaskName = ref('')
 const sTaskStart = ref('')
 const sTaskEnd = ref('')
 
-const timelineStart = new Date(2026, 8, 29)
-const timelineEnd = new Date(2026, 9, 20)
+const timelineStart = computed(() => {
+  let earliestDate = new Date()
+
+  taskStore.tasks.forEach(task => {
+    const startDate = parseDate(task.start)
+    if(startDate < earliestDate) {
+      earliestDate = startDate
+    }
+  })
+
+  earliestDate.setDate(earliestDate.getDate() - 3)
+  return earliestDate
+})
+
+const timelineEnd = computed(() => {
+  let latestDate = new Date()
+
+  taskStore.tasks.forEach(task => {
+    const endDate = parseDate(task.end)
+    if (endDate > latestDate) {
+      latestDate = endDate
+    }
+  })
+
+  latestDate.setDate(latestDate.getDate() + 3)
+  return latestDate
+})
+
 const dates = computed(() => {
   const result = []
-  const current = new Date(timelineStart)
-  
-  while (current <= timelineEnd) {
+  const current = new Date(timelineStart.value)
+  while (current <= timelineEnd.value) {
     result.push(new Date(current))
     current.setDate(current.getDate() + 1)
   }
   return result
+})
+
+const tasks = computed(() => {
+  const result = []
+
+  taskStore.tasks.forEach(task => {
+    result.push({
+      ...task,
+      isSubTask: false
+    })
+    task.subTasks.forEach(subTask => {
+      result.push({
+        ...subTask,
+        isSubTask: true,
+        taskId: task.id
+      })
+    })
+  })
+  return result
+})
+
+onMounted(() => {
+  taskStore.updateOverdue()
 })
 
 function month(date) {
@@ -61,25 +110,6 @@ function month(date) {
       return 'Dec'
   }
 }
-
-const tasks = computed(() => {
-  const result = []
-
-  taskStore.tasks.forEach(task => {
-    result.push({
-      ...task,
-      isSubTask: false
-    })
-    task.subTasks.forEach(subTask => {
-      result.push({
-        ...subTask,
-        isSubTask: true,
-        taskId: task.id
-      })
-    })
-  })
-  return result
-})
 
 function addTask() {
   taskStore.addTask(
@@ -117,7 +147,7 @@ function parseDate(date) {
 }
 
 function getDateOffset(date) {
-  const difference = parseDate(date) - timelineStart
+  const difference = parseDate(date) - timelineStart.value
   return Math.round(difference / (1000 * 60 * 60 * 24))
 }
 
@@ -128,7 +158,7 @@ function getTaskDuration(task) {
   return Math.round(difference / (1000 * 60 * 60 * 24)) + 1
 }
 
-function getTaskStyle(task) {
+function taskStyle(task) {
   const offset = getDateOffset(task.start)
   const duration = getTaskDuration(task)
   return {
@@ -144,6 +174,25 @@ function isToday(date) {
     date.getMonth() == today.getMonth() &&
     date.getDate() == today.getDate()
   )
+}
+
+function overdueDuration(task) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const end = parseDate(task.end)
+  const difference = today - end
+  return Math.round(
+    difference / (1000 * 60 * 60 * 24)
+  )
+}
+
+function overdueStyle(task) {
+  const endOffset = getDateOffset(task.end)
+  const duration = overdueDuration(task)
+  return {
+    left: `${(endOffset + 1) * dayWidth}px`,
+    width: `${duration * dayWidth}px`
+  }
 }
 </script>
 
@@ -346,13 +395,24 @@ function isToday(date) {
                       'completed': task.status === 'Completed',
                       'overdue' : task.status === 'Overdue'
                     }"
-                    :style="getTaskStyle(task)"
+                    :style="taskStyle(task)"
                   >
                     <div
                       class="task-progress"
                       :style="{ width: `${task.progress}%` }"
                     >
                     </div>
+                  </div>
+
+                  <div
+                    v-if="task.overdue"
+                    class="overdue-extension"
+                    :class="{
+                      overdue: task.status === 'Overdue',
+                      completed: task.status === 'Completed'
+                    }"
+                    :style="overdueStyle(task)"
+                  >
                   </div>
                 </div>
               </div>
@@ -389,7 +449,7 @@ function isToday(date) {
 .gantt-header,
 .gantt-row {
   display: grid;
-  grid-template-columns: 220px auto;
+  grid-template-columns: 220px max-content;
 }
 
 .gantt-row {
@@ -436,11 +496,13 @@ function isToday(date) {
   position: relative;
   display: grid;
   min-height: 70px;
+  width: max-content;
 }
 
 .date-column {
   position: relative;
   display: grid;
+  width: max-content;
 }
 
 .task-bar {
@@ -491,6 +553,39 @@ function isToday(date) {
   bottom: 0;
   background: rgba(255, 255, 255, 0.5);
   transition: width 0.2s ease;
+}
+
+.overdue-extension {
+  position: absolute;
+  top: 10px;
+  height: 40px;
+  border-radius: 6px;
+  z-index: 1;
+}
+
+.overdue-extension.overdue {
+  background: repeating-linear-gradient(
+    90deg,
+    #444,
+    #444 8px,
+    red 6px,
+    red 16px
+  );
+}
+
+.overdue-extension.completed {
+  background: repeating-linear-gradient(
+    90deg,
+    #444,
+    #444 8px,
+    #388e3c 8px,
+    #388e3c 16px
+  );
+}
+
+.gantt-row.gantt-row.subtask-row .overdue-extension {
+  top: 1px;
+  height: 25px;
 }
 
 .date {

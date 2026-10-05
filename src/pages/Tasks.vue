@@ -1,7 +1,11 @@
 <script setup>
 import { VBtn } from 'vuetify/components'
 import { useTaskStore } from '../stores/taskStore'
-import { ref, computed } from 'vue'
+import {
+  ref,
+  computed,
+  onMounted
+} from 'vue'
 
 const taskStore = useTaskStore()
 
@@ -41,6 +45,10 @@ const tasks = computed(() => {
     })
   })
   return result
+})
+
+onMounted(() => {
+  taskStore.updateOverdue()
 })
 
 function addTask() {

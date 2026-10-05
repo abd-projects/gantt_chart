@@ -10,14 +10,16 @@ export const useTaskStore = defineStore('tasks', () => {
         end: '2026-10-05',
         status: 'In Progress',
         progress: 60,
+        overdue: false,
         id: 1,
         subTasks: [
             {
                 name: 'SubTask 1',
                 start: '2026-09-29',
-                end: '2026-10-05',
+                end: '2026-10-03',
                 status: 'Overdue',
                 progress: 60,
+                overdue: true,
                 id: 1.1,
             }
         ]
@@ -28,6 +30,7 @@ export const useTaskStore = defineStore('tasks', () => {
         end: '2026-10-12',
         status: 'Not Started',
         progress: 0,
+        overdue: false,
         id: 2,
         subTasks: []
     },
@@ -37,6 +40,7 @@ export const useTaskStore = defineStore('tasks', () => {
         end: '2026-10-16',
         status: 'Not Started',
         progress: 0,
+        overdue: false,
         id: 3,
         subTasks: []
     },
@@ -45,11 +49,37 @@ export const useTaskStore = defineStore('tasks', () => {
         start: '2026-10-15',
         end: '2026-10-20',
         status: 'Completed',
-        progress: 90,
+        progress: 100,
+        overdue: false,
         id: 4,
         subTasks: []
     }
     ])
+
+    function updateOverdue() {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        tasks.value.forEach(task => {
+            const taskEnd = new Date(task.end)
+            taskEnd.setHours(0, 0, 0, 0)
+
+            if (taskEnd < today && task.status !== 'Completed') {
+                task.status = 'Overdue'
+                task.overdue = true
+            }
+
+            task.subTasks.forEach(subTask => {
+                const subTaskEnd = new Date(subTask.end)
+                subTaskEnd.setHours(0, 0, 0, 0)
+
+                if (subTaskEnd < today && subTask.status !== 'Completed') {
+                    subTask.status = 'Overdue'
+                    subTask.overdue = true
+                }
+            })
+        })
+    }
 
     function updateTaskProgress(id) {
         const task = tasks.value.find(task => task.id === id)
@@ -58,9 +88,17 @@ export const useTaskStore = defineStore('tasks', () => {
             let progress = 0
 
             for (const subTask of task.subTasks) {
-                progress += subTask.progress
+                if (subTask.status === 'Completed') {
+                    progress += 100
+                }
+                else {
+                    progress += subTask.progress
+                }
             }
             task.progress = progress / task.subTasks.length
+            if (task.progress === 100) {
+                task.status = 'Completed'
+            }
         }
     }
 
@@ -74,6 +112,7 @@ export const useTaskStore = defineStore('tasks', () => {
             end: end,
             status: 'Not Started',
             progress: 0,
+            overdue: false,
             id: id++,
             subTasks: []
         })
@@ -90,13 +129,16 @@ export const useTaskStore = defineStore('tasks', () => {
             task.start = start
             task.end = end
             task.status = status
-            if (progress>=100) {
+            if (status === 'Completed' || progress >= 100) {
                 task.progress = 100
                 task.status = 'Completed'
+                task.subTasks.forEach(subTask => {
+                    subTask.status = 'Completed'
+                    subTask.progress = 100
+                })
             }
             else if (progress<=0) {
                 task.progress = 0
-                task.status = 'Not Started'
             }
             else {
                 task.progress = progress
@@ -127,6 +169,7 @@ export const useTaskStore = defineStore('tasks', () => {
                 end: end,
                 status: 'Not Started',
                 progress: 0,
+                overdue: false,
                 id: id + (task.subTasks.length + 1) / 10
             })
 
@@ -154,7 +197,7 @@ export const useTaskStore = defineStore('tasks', () => {
                 sTask.start = start
                 sTask.end = end
                 sTask.status = status
-                if (progress>=100) {
+                if (status === 'Completed' || progress >= 100) {
                     sTask.progress = 100
                     sTask.status = 'Completed'
                 }
@@ -187,6 +230,7 @@ export const useTaskStore = defineStore('tasks', () => {
         deleteTask,
         addSubTask,
         updateSubTask,
-        deleteSubTask
+        deleteSubTask,
+        updateOverdue
     }
 })
