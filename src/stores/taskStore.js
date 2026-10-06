@@ -1,60 +1,138 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import {
+    ref,
+    watch
+} from "vue";
 
 export const useTaskStore = defineStore('tasks', () => {
-    let id = 5
-    const tasks = ref([
-    {
-        name: 'UI Design',
-        start: '2026-09-29',
-        end: '2026-10-05',
-        status: 'In Progress',
-        progress: 60,
-        overdue: false,
-        id: 1,
-        subTasks: [
-            {
-                name: 'SubTask 1',
-                start: '2026-09-29',
-                end: '2026-10-03',
-                status: 'Overdue',
-                progress: 60,
-                overdue: true,
-                id: 1.1,
-            }
-        ]
-    },
-    {
-        name: 'Backend Development',
-        start: '2026-10-01',
-        end: '2026-10-12',
-        status: 'Not Started',
-        progress: 0,
-        overdue: false,
-        id: 2,
-        subTasks: []
-    },
-    {
-        name: 'Testing',
-        start: '2026-10-10',
-        end: '2026-10-16',
-        status: 'Not Started',
-        progress: 0,
-        overdue: false,
-        id: 3,
-        subTasks: []
-    },
-    {
-        name: 'Deployment',
-        start: '2026-10-15',
-        end: '2026-10-20',
-        status: 'Completed',
-        progress: 100,
-        overdue: false,
-        id: 4,
-        subTasks: []
+    let id = Number(localStorage.getItem('nextTaskId')) || 5
+    const defaultTasks = [
+        {
+            name: 'UI Design',
+            start: '2026-09-29',
+            end: '2026-10-05',
+            status: 'In Progress',
+            progress: 60,
+            overdue: false,
+            id: 1,
+            subTasks: [
+                {
+                    name: 'SubTask 1',
+                    start: '2026-09-29',
+                    end: '2026-10-03',
+                    status: 'Overdue',
+                    progress: 60,
+                    overdue: true,
+                    id: 1.1,
+                }
+            ]
+        },
+        {
+            name: 'Backend Development',
+            start: '2026-10-01',
+            end: '2026-10-12',
+            status: 'Not Started',
+            progress: 0,
+            overdue: false,
+            id: 2,
+            subTasks: []
+        },
+        {
+            name: 'Testing',
+            start: '2026-10-10',
+            end: '2026-10-16',
+            status: 'Not Started',
+            progress: 0,
+            overdue: false,
+            id: 3,
+            subTasks: []
+        },
+        {
+            name: 'Deployment',
+            start: '2026-10-15',
+            end: '2026-10-20',
+            status: 'Completed',
+            progress: 100,
+            overdue: false,
+            id: 4,
+            subTasks: []
+        }
+    ]
+
+    const savedTasks = localStorage.getItem('tasks')
+    const tasks = ref(
+        savedTasks ? JSON.parse(savedTasks) : defaultTasks
+    )
+
+    watch(
+        tasks,
+        (newTasks) => {
+            localStorage.setItem(
+                'tasks',
+                JSON.stringify(newTasks)
+            )
+        },
+        { deep: true }
+    )
+
+    function formatDate(date) {
+        if (date instanceof Date) {
+            const year = date.getFullYear()
+            const month = String(date.getMonth() + 1).padStart(2, '0')
+            const day = String(date.getDate()).padStart(2, '0')
+            return `${year}-${month}-${day}`
+        }
+        return date
     }
-    ])
+
+    function importTasks(rows) {
+        id = 1
+        localStorage.setItem('nextTaskId', id)
+        tasks.value = []
+        const taskMap = {}
+
+        rows.forEach(row => {
+            if (row.Type === 'Task') {
+                const task = {
+                    name: row.Name,
+                    start: formatDate(row.Start),
+                    end: formatDate(row.End),
+                    status: row.Status || 'Not Started',
+                    progress: Number(row.Progress) || 0,
+                    overdue: false,
+                    id: id++,
+                    subTasks: []
+                }
+
+                tasks.value.push(task)
+                taskMap[row.Name] = task
+            }
+        })
+
+        rows.forEach(row => {
+            if (row.Type === 'Subtask') {
+                const parentTask = taskMap[row.Parent]
+                if (parentTask) {
+                    parentTask.subTasks.push({
+                        name: row.Name,
+                        start: formatDate(row.Start),
+                        end: formatDate(row.End),
+                        status: row.Status || 'Not Started',
+                        progress: Number(row.Progress) || 0,
+                        overdue: false,
+                        id: parentTask.id +
+                        (parentTask.subTasks.length + 1) / 10
+                    })
+                }
+            }
+        })
+
+        updateOverdue()
+    }
+
+    function saveNextId() {
+        localStorage.setItem('nextTaskId', id)
+    }
 
     function updateOverdue() {
         const today = new Date()
@@ -155,10 +233,10 @@ export const useTaskStore = defineStore('tasks', () => {
 
         if (task) {
             if (task.start > start) {
-                start = task.start
+                task.start = start
             }
             if (task.end < end) {
-                end = task.end
+                task.end = end
             }
             if (end < start) {
                 end = start
@@ -185,10 +263,10 @@ export const useTaskStore = defineStore('tasks', () => {
 
             if (sTask) {
                 if (task.start > start) {
-                    start = task.start
+                    task.start = start
                 }
                 if (task.end < end) {
-                    end = task.end
+                    task.end = end
                 }
                 if (end < start) {
                     end = start
@@ -225,6 +303,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
     return {
         tasks,
+        importTasks,
         addTask,
         updateTask,
         deleteTask,

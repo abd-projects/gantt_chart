@@ -1,4 +1,5 @@
 <script setup>
+import * as XLSX from 'xlsx'
 import { VBtn } from 'vuetify/components'
 import { useTaskStore } from '../stores/taskStore'
 import {
@@ -50,6 +51,45 @@ const tasks = computed(() => {
 onMounted(() => {
   taskStore.updateOverdue()
 })
+
+async function importFile(event) {
+  const file = event.target.files[0]
+
+  if (!file) {
+    return
+  }
+  
+  const data = await file.arrayBuffer()
+  const workbook = XLSX.read(data, { cellDates: true })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(sheet)
+
+  if (rows.length === 0) {
+    alert('The file is empty.')
+    event.target.value = ''
+    return
+  }
+
+  const requiredColumns = [
+    'Type',
+    'Name',
+    'Start',
+    'End'
+  ]
+  const firstRow = rows[0]
+
+  for (const column of requiredColumns) {
+    if (!(column in firstRow)) {
+      alert(`Missing column: ${column}`)
+      event.target.value = ''
+      return
+    }
+  }
+
+  taskStore.importTasks(rows)
+  alert(`${rows.length} rows imported successfully.`)
+  eventName.target.value = ''
+}
 
 function addTask() {
   taskStore.addTask(
@@ -143,13 +183,31 @@ function deleteSubTask(id, sId) {
         Tasks Overview
       </v-card-title>
 
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-plus"
-        @click="addDialog = true"
-      >
-        Add Task
-      </v-btn>
+      <div class="header-buttons">
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-plus"
+          @click="addDialog = true"
+        >
+          Add Task
+        </v-btn>
+
+        <v-btn
+          color="secondary"
+          prepend-icon="mdi-file-upload"
+          @click="$refs.fileInput.click()"
+        >
+          Import
+        </v-btn>
+
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          style="display: none"
+          @change="importFile"
+        />
+      </div>
     </div>
 
     <v-card-text>
@@ -436,6 +494,11 @@ function deleteSubTask(id, sId) {
   justify-content: space-between;
   align-items: center;
   margin: 24px 24px 0px 0px;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 5px;
 }
 
 .subtask-row td {
